@@ -21,10 +21,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 // Generate a comprehensive text representation of a company for embedding
 export function generateCompanyText(company: {
   name: string;
-  description?: string;
+  description: string | null;
   tags: string[];
   backing_vcs: string[];
-  stage: string;
+  stage: string | null;
   founders: string[];
 }): string {
   console.log("[v0] Chunking company for embedding");

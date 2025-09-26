@@ -8,7 +8,10 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // Get companies without embeddings
-    const { data: companies, error: fetchError } = await supabase.from("companies").select("*").is("embedding", null);
+    const { data: companies, error: fetchError } = await supabase
+      .from("companies")
+      .select("id,name,description,tags,founders,backing_vcs,stage")
+      .is("embedding", null);
 
     if (fetchError) {
       return NextResponse.json({ error: `Failed to fetch companies: ${fetchError.message}` }, { status: 500 });
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
 
       updates.push({
         id: company.id,
-        embedding, //: `[${embedding.join(",")}]`, // PostgreSQL vector format
+        embedding: JSON.stringify(embedding),
       });
     }
 
