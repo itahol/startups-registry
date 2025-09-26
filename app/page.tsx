@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useDebounce } from "@/hooks/use-debounce"
 import { useCompanies } from "@/lib/queries/companies"
 import type { SearchFilters } from "@/lib/types"
+import { Button } from '@/components/ui/button'
 
 const getStageColor = (stage: string) => {
   switch (stage.toLowerCase()) {
@@ -91,12 +92,20 @@ export default function StartupRegistry() {
       {/* Header */}
       <div className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold text-balance">Startup Registry</h1>
-            <p className="text-lg text-muted-foreground text-pretty max-w-2xl mx-auto">
-              Discover and explore innovative startups across different industries, funding stages, and backing
-              investors.
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="text-left">
+              <h1 className="text-4xl font-bold text-balance">Startup Registry</h1>
+              <p className="text-lg text-muted-foreground text-pretty max-w-2xl">
+                Discover and explore innovative startups across different industries, funding stages, and backing
+                investors.
+              </p>
+            </div>
+
+            <div className="ml-4">
+              <a href="/admin" aria-label="Admin Dashboard">
+                <Button variant="outline" size="sm">Admin Dashboard</Button>
+              </a>
+            </div>
           </div>
         </div>
       </div>

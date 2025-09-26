@@ -60,9 +60,17 @@ export default function AdminPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage the startup registry database and operations</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Manage the startup registry database and operations</p>
+          </div>
+
+          <div className="ml-4">
+            <a href="/" aria-label="Back to Registry">
+              <Button variant="ghost" size="sm">Back</Button>
+            </a>
+          </div>
         </div>
 
         <Tabs defaultValue="embeddings" className="space-y-6">
