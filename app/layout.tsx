@@ -22,6 +22,13 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <ReactQueryClientProvider>
+          <header className="w-full bg-card border-b border-border">
+            <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+              <a href="/" className="text-lg font-semibold">Registry</a>
+              <a href="/admin" className="text-sm text-muted-foreground">Admin</a>
+            </div>
+          </header>
+
           <Suspense>{children}</Suspense>
         </ReactQueryClientProvider>
         <Analytics />

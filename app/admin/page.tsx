@@ -66,11 +66,6 @@ export default function AdminPage() {
             <p className="text-muted-foreground">Manage the startup registry database and operations</p>
           </div>
 
-          <div className="ml-4">
-            <a href="/" aria-label="Back to Registry">
-              <Button variant="ghost" size="sm">Back</Button>
-            </a>
-          </div>
         </div>
 
         <Tabs defaultValue="embeddings" className="space-y-6">

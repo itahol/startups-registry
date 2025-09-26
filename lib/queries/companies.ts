@@ -60,6 +60,8 @@ export function useCompanies(filters?: SearchFilters) {
         return fallbackKeywordSearch(supabase, searchQuery as string, tagFilters);
       }
     },
+    // Only enable query when there's a search query or tag filters
+    enabled: Boolean(searchQuery?.trim() || tagFilters.length > 0),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
   });
