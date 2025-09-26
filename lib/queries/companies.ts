@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
-import type { Company, CompanySearchResult, SearchFilters } from "@/lib/types"
-
-import { generateEmbedding } from "@/lib/embeddings"
+import type { Company, SearchFilters } from "@/lib/types"
 
 export function useCompanies(filters?: SearchFilters) {
   const searchQuery = filters?.query
@@ -30,43 +28,32 @@ export function useCompanies(filters?: SearchFilters) {
       }
 
       try {
-        console.log("[v0] Attempting to generate embedding for search query:", searchQuery)
-        const queryEmbedding = await generateEmbedding(searchQuery)
+        console.log("[v0] Client: calling server search API for query:", searchQuery)
 
-        // Check if embedding generation actually succeeded (not just a zero vector fallback)
-        const isValidEmbedding = queryEmbedding.some((val) => val !== 0)
+        const params = new URLSearchParams()
+        params.set("q", searchQuery || "")
+        if (tagFilters.length > 0) params.set("tags", tagFilters.join(","))
 
-        if (!isValidEmbedding) {
-          console.log("[v0] Embedding generation failed, using fallback keyword search")
-          return fallbackKeywordSearch(supabase, searchQuery, tagFilters)
+        const res = await fetch(`/api/companies?${params.toString()}`)
+
+        if (!res.ok) {
+          console.error("[v0] search API returned error", await res.text())
+          return fallbackKeywordSearch(supabase, searchQuery as string, tagFilters)
         }
 
-        console.log("[v0] Embedding generated successfully, attempting hybrid search")
-        const { data, error } = (await supabase.rpc("hybrid_search_companies", {
-          query_text: searchQuery,
-          query_embedding: `[${queryEmbedding.join(",")}]`,
-          match_threshold: 0.78,
-          match_count: 50,
-        })) as { data: CompanySearchResult[] | null; error: any }
+        const companies = await res.json()
 
-        if (error) {
-          console.error("[v0] Hybrid search error:", error)
-          // Fallback to keyword search if hybrid search fails
-          return fallbackKeywordSearch(supabase, searchQuery, tagFilters)
-        }
-
-        console.log("[v0] Hybrid search successful, returning results")
-        let results = (data || []).map(({ similarity, rank_score, ...company }) => company)
-
+        // Ensure final filtering by tags client-side (extra safety)
+        let results = (companies || []) as Company[]
         if (tagFilters.length > 0) {
-          results = results.filter((company) => tagFilters.every((tag) => company.tags.includes(tag)))
+          results = results.filter((company) => tagFilters.every((tag) => (company.tags || []).includes(tag)))
         }
 
         return results
       } catch (error) {
-        console.error("[v0] Error in hybrid search:", error)
+        console.error("[v0] Error calling search API:", error)
         // Fallback to keyword search
-        return fallbackKeywordSearch(supabase, searchQuery, tagFilters)
+        return fallbackKeywordSearch(supabase, searchQuery as string, tagFilters)
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -125,7 +112,7 @@ async function fallbackKeywordSearch(
 
   // Sort results to prioritize name matches
   if (data) {
-    data.sort((a, b) => {
+    data.sort((a: any, b: any) => {
       const aNameMatch = a.name.toLowerCase().includes(searchQuery.toLowerCase())
       const bNameMatch = b.name.toLowerCase().includes(searchQuery.toLowerCase())
 
@@ -138,3 +125,4 @@ async function fallbackKeywordSearch(
   console.log("[v0] Fallback keyword search returned", data?.length || 0, "results")
   return data || []
 }
+
