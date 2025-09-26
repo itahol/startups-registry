@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
           } else {
             let results = (data || []).map(({ similarity, rank_score, ...company }) => company);
             if (tagFilters.length > 0) {
-              results = results.filter((company) => (company.tags || []).every((t: string) => tagFilters.includes(t)));
+              results = results.filter((company) => {
+                return tagFilters.every((tag) => company.tags.includes(tag));
+              });
             }
             return NextResponse.json(results || []);
           }
