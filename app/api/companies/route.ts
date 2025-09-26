@@ -1,4 +1,4 @@
-import { generateEmbedding } from "@/lib/embeddings";
+import { generateCompanyText, generateEmbedding } from "@/lib/embeddings";
 import { createClient } from "@/lib/supabase/server";
 import type { Company } from "@/lib/types";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -117,6 +117,79 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(companies);
   } catch (error) {
     console.error("API error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      name,
+      description = null,
+      tags = [],
+      backing_vcs = [],
+      stage = null,
+      founders = [],
+      website = null,
+      logo_url = null,
+      sector = null,
+    } = body || {};
+
+    if (!name || typeof name !== "string") {
+      return NextResponse.json({ error: "Missing required field: name" }, { status: 400 });
+    }
+
+    const supabase = await createClient();
+
+    const insertPayload = {
+      name: name.trim(),
+      description,
+      tags: Array.isArray(tags) ? tags : String(tags).split(",").map((t) => t.trim()).filter(Boolean),
+      backing_vcs: Array.isArray(backing_vcs) ? backing_vcs : String(backing_vcs).split(",").map((t) => t.trim()).filter(Boolean),
+      stage,
+      founders: Array.isArray(founders) ? founders : String(founders).split(",").map((t) => t.trim()).filter(Boolean),
+      website,
+      logo_url,
+      sector,
+    };
+
+    const { data, error } = await supabase.from("companies").insert([insertPayload]).select().single();
+
+    if (error) {
+      console.error("Failed to insert company:", error);
+      return NextResponse.json({ error: error.message || "Failed to create company" }, { status: 500 });
+    }
+
+    // Try to generate an embedding for the new company and store it
+    try {
+      const safeCompany = {
+        name: data.name,
+        description: data.description || "",
+        tags: data.tags || [],
+        backing_vcs: data.backing_vcs || [],
+        stage: data.stage || null,
+        founders: data.founders || [],
+      };
+
+      const companyText = generateCompanyText(safeCompany);
+      const embedding = await generateEmbedding(companyText);
+
+      const { error: updateError } = await supabase
+        .from("companies")
+        .update({ embedding: JSON.stringify(embedding) })
+        .eq("id", data.id);
+
+      if (updateError) {
+        console.error("Failed to update company embedding:", updateError);
+      }
+    } catch (err) {
+      console.error("Failed to generate embedding for new company:", err);
+    }
+
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    console.error("API POST error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
