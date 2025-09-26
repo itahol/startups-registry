@@ -281,9 +281,16 @@ function EditCompanyForm({ company, onCancel, onSave }: { company: any, onCancel
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-4">
-      <div>
-        <Label className="mb-1">Name</Label>
-        <Input {...register('name', { required: true })} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label className="mb-1">Name</Label>
+          <Input {...register('name', { required: true })} />
+        </div>
+
+        <div>
+          <Label className="mb-1">Stage</Label>
+          <Input {...register('stage')} placeholder="e.g. Seed, Series A" />
+        </div>
       </div>
 
       <div>
@@ -291,9 +298,40 @@ function EditCompanyForm({ company, onCancel, onSave }: { company: any, onCancel
         <Textarea {...register('description')} />
       </div>
 
-      <div>
-        <Label className="mb-1">Tags</Label>
-        <TagInput value={tags} onChange={setTags} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label className="mb-1">Tags</Label>
+          <TagInput value={tags} onChange={setTags} placeholder="Add tag (supports spaces)" />
+        </div>
+
+        <div>
+          <Label className="mb-1">Sector</Label>
+          <Input {...register('sector')} placeholder="e.g. Fintech" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label className="mb-1">Founders</Label>
+          <TagInput value={founders} onChange={setFounders} placeholder="Founder name" />
+        </div>
+
+        <div>
+          <Label className="mb-1">Backing VCs</Label>
+          <TagInput value={backing} onChange={setBacking} placeholder="VC name" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label className="mb-1">Website</Label>
+          <Input {...register('website')} placeholder="https://example.com" />
+        </div>
+
+        <div>
+          <Label className="mb-1">Logo URL</Label>
+          <Input {...register('logo_url')} placeholder="https://.../logo.png" />
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">
@@ -366,10 +404,10 @@ export default function AdminPage() {
 
         </div>
 
-        <Tabs defaultValue="embeddings" className="space-y-6">
+        <Tabs defaultValue="companies" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="embeddings">Embeddings</TabsTrigger>
-            <TabsTrigger value="companies">Companies</TabsTrigger>
+            <TabsTrigger value="companies" className="hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">Companies</TabsTrigger>
+            <TabsTrigger value="embeddings" className="hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">Embeddings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="embeddings">
