@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
           const rpcArgs = {
             query_embedding: JSON.stringify(embedding),
             query_text: query,
-            match_threshold: 0.5,
+            match_threshold: 0.2,
             match_count: 50,
           } as const;
 
