@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import Link from "next/link"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
@@ -27,20 +28,20 @@ export default function RootLayout({
           <header className="w-full bg-card border-b border-border shadow-sm">
             <div className="container mx-auto px-4 py-3 flex items-center gap-4">
               <div className="flex items-center gap-4 w-full md:w-auto">
-                <a href="/" className="flex items-center">
+                <Link href="/" className="flex items-center">
                   <img src="/placeholder-logo.svg" alt="Registry" className="h-8 w-auto object-contain" />
                   <span className="sr-only">Registry</span>
-                </a>
+                </Link>
               </div>
 
               <div className="ml-auto flex items-center gap-4">
                 <nav className="hidden sm:flex items-center gap-3">
-                  <a href="/search" className="text-sm text-muted-foreground hover:text-foreground">Discover</a>
-                  <a href="/admin" className="text-sm text-muted-foreground hover:text-foreground">Admin</a>
+                  <Link href="/search" className="text-sm text-muted-foreground hover:text-foreground">Discover</Link>
+                  <Link href="/admin" className="text-sm text-muted-foreground hover:text-foreground">Admin</Link>
                 </nav>
 
                 <div className="flex items-center gap-3">
-                  <a href="/account" className="text-sm text-muted-foreground hover:text-foreground hidden sm:inline">Account</a>
+                  <Link href="/account" className="text-sm text-muted-foreground hover:text-foreground hidden sm:inline">Account</Link>
                   <Avatar>
                     <AvatarImage src="/placeholder-user.jpg" alt="User" />
                     <AvatarFallback>U</AvatarFallback>
