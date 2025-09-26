@@ -44,8 +44,8 @@ BEGIN
     FROM companies c
     WHERE
       c.name ILIKE '%' || query_text || '%' OR
-      query_text = ANY(c.tags) OR
-      query_text = ANY(c.backing_vcs) OR
+      query_text ILIKE ANY(c.tags) OR
+      query_text ILIKE ANY(c.backing_vcs) OR
       c.stage ILIKE '%' || query_text || '%' OR
       query_text = ANY(c.founders)
     LIMIT match_count

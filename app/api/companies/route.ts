@@ -37,9 +37,9 @@ export async function GET(request: NextRequest) {
         if (isValidEmbedding) {
           console.log("[v0] Server: calling hybrid_search_companies RPC");
           const rpcArgs: any = {
-            query_embedding: embedding, //`[${embedding.join(",")}]`,
+            query_embedding: embedding,
             query_text: query,
-            match_threshold: 0.78,
+            match_threshold: 0.5,
             match_count: 50,
           };
 
