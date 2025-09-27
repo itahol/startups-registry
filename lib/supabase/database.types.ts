@@ -56,6 +56,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      people: {
+        Row: {
+          created_at: string | null;
+          email: string | null;
+          first_name: string;
+          id: string;
+          last_name: string;
+          linkedin: string | null;
+          phone: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          created_at?: string | null;
+          email?: string | null;
+          first_name: string;
+          id?: string;
+          last_name: string;
+          linkedin?: string | null;
+          phone?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          created_at?: string | null;
+          email?: string | null;
+          first_name?: string;
+          id?: string;
+          last_name?: string;
+          linkedin?: string | null;
+          phone?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
