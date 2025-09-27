@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "supabase:gen-types": "bunx supabase link && bunx supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
