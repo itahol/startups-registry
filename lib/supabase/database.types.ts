@@ -89,6 +89,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      person__company: {
+        Row: {
+          company_id: string;
+          created_at: string | null;
+          currently_works_here: boolean | null;
+          is_founder: boolean | null;
+          person_id: string;
+          role: string;
+          updated_at: string | null;
+        };
+        Insert: {
+          company_id: string;
+          created_at?: string | null;
+          currently_works_here?: boolean | null;
+          is_founder?: boolean | null;
+          person_id: string;
+          role: string;
+          updated_at?: string | null;
+        };
+        Update: {
+          company_id?: string;
+          created_at?: string | null;
+          currently_works_here?: boolean | null;
+          is_founder?: boolean | null;
+          person_id?: string;
+          role?: string;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "person_company_company_id_fkey";
+            columns: ["company_id"];
+            isOneToOne: false;
+            referencedRelation: "companies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "person_company_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
