@@ -7,10 +7,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Get all companies
+    // Get all companies (include person join to derive founders)
     const { data: companies, error: fetchError } = await supabase
       .from("companies")
-      .select("id,name,description,tags,founders,backing_vcs,stage");
+      .select(`id,name,description,tags,backing_vcs,stage, person__company ( person ( first_name, last_name ), is_founder )`);
 
     if (fetchError) {
       return NextResponse.json({ error: `Failed to fetch companies: ${fetchError.message}` }, { status: 500 });
@@ -20,16 +20,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "No companies found in database" });
     }
 
-    if (!companies || companies.length === 0) {
-      return NextResponse.json({ message: "All companies already have embeddings" });
-    }
+    const safeCompanies = companies.map((company: any) => {
+      const foundersFromJoin = (company.person__company || [])
+        .filter((pc: any) => pc.is_founder)
+        .map((pc: any) => {
+          const p = pc.person;
+          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+        })
+        .filter(Boolean) as string[];
 
-    const safeCompanies = companies.map((company) => ({
-      ...company,
-      tags: company.tags || [],
-      founders: company.founders || [],
-      backing_vcs: company.backing_vcs || [],
-    }));
+      return {
+        ...company,
+        tags: company.tags || [],
+        founders: foundersFromJoin.length > 0 ? foundersFromJoin : [],
+        backing_vcs: company.backing_vcs || [],
+      };
+    });
 
     // Generate embeddings for each company
     const updates = [];

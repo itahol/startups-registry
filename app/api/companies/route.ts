@@ -19,14 +19,41 @@ export async function GET(request: NextRequest) {
 
     // If there's no search query and no tags, return all companies
     if (!query && tagFilters.length === 0) {
-      const { data: companies, error } = (await supabase.from("companies").select("*").order("name")) as {
-        data: Company[] | null;
-        error: PostgrestError | null;
-      };
+      const { data, error } = (await supabase
+        .from("companies")
+        .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
+        .order("name")) as { data: any[] | null; error: PostgrestError | null };
+
       if (error) {
         console.error("Database error:", error);
         return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
       }
+
+      const companies = (data || []).map((c: any) => {
+        const foundersFromJoin = (c.person__company || [])
+          .filter((pc: any) => pc.is_founder)
+          .map((pc: any) => {
+            const p = pc.person;
+            return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+          })
+          .filter(Boolean) as string[];
+
+        return {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          tags: c.tags || [],
+          sector: c.sector,
+          backing_vcs: c.backing_vcs || [],
+          stage: c.stage,
+          founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+          website: c.website,
+          logo_url: c.logo_url,
+          created_at: c.created_at,
+          updated_at: c.updated_at,
+        } as Company;
+      });
+
       return NextResponse.json(companies || []);
     }
 
@@ -75,7 +102,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Keyword fallback search (applies for tag-only searches or when hybrid fails)
-    let supabaseQuery = supabase.from("companies").select("*").order("name");
+    let supabaseQuery = supabase
+      .from("companies")
+      .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
+      .order("name");
 
     if (query) {
       supabaseQuery = supabaseQuery.or(
@@ -93,14 +123,37 @@ export async function GET(request: NextRequest) {
       supabaseQuery = supabaseQuery.contains("tags", [tag]);
     }
 
-    const { data, error } = (await supabaseQuery) as { data: Company[] | null; error: PostgrestError | null };
+    const { data, error } = (await supabaseQuery) as { data: any[] | null; error: PostgrestError | null };
 
     if (error) {
       console.error("Database error (keyword fallback):", error);
       return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
     }
 
-    const companies = data || [];
+    const companies = (data || []).map((c: any) => {
+      const foundersFromJoin = (c.person__company || [])
+        .filter((pc: any) => pc.is_founder)
+        .map((pc: any) => {
+          const p = pc.person;
+          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+        })
+        .filter(Boolean) as string[];
+
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        tags: c.tags || [],
+        sector: c.sector,
+        backing_vcs: c.backing_vcs || [],
+        stage: c.stage,
+        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+        website: c.website,
+        logo_url: c.logo_url,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+      } as Company;
+    });
 
     // If there's a search query, sort results to prioritize name matches
     if (query && companies.length > 0) {
@@ -142,13 +195,23 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // Insert company WITHOUT founders column (we'll handle founders via person/person__company)
     const insertPayload = {
       name: name.trim(),
       description,
-      tags: Array.isArray(tags) ? tags : String(tags).split(",").map((t) => t.trim()).filter(Boolean),
-      backing_vcs: Array.isArray(backing_vcs) ? backing_vcs : String(backing_vcs).split(",").map((t) => t.trim()).filter(Boolean),
+      tags: Array.isArray(tags)
+        ? tags
+        : String(tags)
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean),
+      backing_vcs: Array.isArray(backing_vcs)
+        ? backing_vcs
+        : String(backing_vcs)
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean),
       stage,
-      founders: Array.isArray(founders) ? founders : String(founders).split(",").map((t) => t.trim()).filter(Boolean),
       website,
       logo_url,
       sector,
@@ -161,6 +224,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message || "Failed to create company" }, { status: 500 });
     }
 
+    // If founders were provided, create person and person__company links
+    try {
+      const founderNames = Array.isArray(founders)
+        ? founders
+        : String(founders || "")
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
+
+      for (const fullName of founderNames) {
+        const parts = fullName.split(" ").filter(Boolean);
+        const first_name = parts.shift() || "";
+        const last_name = parts.join(" ") || "";
+
+        // Try to find existing person
+        const { data: existingperson } = await supabase
+          .from("person")
+          .select("id")
+          .eq("first_name", first_name)
+          .eq("last_name", last_name)
+          .limit(1);
+
+        let personId: string | undefined;
+        if (existingperson && existingperson.length > 0) {
+          personId = existingperson[0].id;
+        } else {
+          const { data: newPerson, error: personError } = await supabase
+            .from("person")
+            .insert({ first_name, last_name })
+            .select()
+            .single();
+
+          if (personError) {
+            console.error("Failed to create person:", personError);
+            continue;
+          }
+
+          personId = newPerson.id;
+        }
+
+        // Link to company via person__company
+        const { error: linkError } = await supabase.from("person__company").insert({
+          company_id: data.id,
+          person_id: personId,
+          is_founder: true,
+          currently_works_here: true,
+          role: "",
+        });
+
+        if (linkError) {
+          console.error("Failed to link person to company:", linkError);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to process founders for new company:", err);
+    }
+
     // Try to generate an embedding for the new company and store it
     try {
       const safeCompany = {
@@ -169,7 +289,12 @@ export async function POST(request: NextRequest) {
         tags: data.tags || [],
         backing_vcs: data.backing_vcs || [],
         stage: data.stage || null,
-        founders: data.founders || [],
+        founders: Array.isArray(founders)
+          ? founders
+          : String(founders || "")
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean),
       };
 
       const companyText = generateCompanyText(safeCompany);

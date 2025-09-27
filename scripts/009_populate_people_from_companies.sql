@@ -1,11 +1,11 @@
 BEGIN;
 
--- 0) Optional but recommended: canonical full name on people + uniqueness
--- ALTER TABLE people
+-- 0) Optional but recommended: canonical full name on person + uniqueness
+-- ALTER TABLE person
 --   ADD COLUMN full_name_canon text GENERATED ALWAYS AS (
 --     lower(regexp_replace(btrim(concat_ws(' ', first_name, last_name)), '\s+', ' ', 'g'))
 --   ) STORED;
--- ALTER TABLE people ADD CONSTRAINT people_full_name_canon_uniq UNIQUE (full_name_canon);
+-- ALTER TABLE person ADD CONSTRAINT person_full_name_canon_uniq UNIQUE (full_name_canon);
 -- 1) Normalize founders once
 CREATE TEMP TABLE tmp_founders_normalized AS
 SELECT
@@ -34,16 +34,16 @@ WHERE
   AND fndr IS NOT NULL
   AND btrim(fndr) <> '';
 
--- 2) Insert missing people by canonical full name
+-- 2) Insert missing person by canonical full name
 INSERT INTO
-  people (first_name, last_name, created_at)
+  person (first_name, last_name, created_at)
 SELECT DISTINCT
   t.first_name,
   t.last_name,
   now()
 FROM
   tmp_founders_normalized t
-  LEFT JOIN people p ON lower(
+  LEFT JOIN person p ON lower(
     regexp_replace(
       btrim(concat_ws(' ', p.first_name, p.last_name)),
       '\s+',
@@ -55,11 +55,11 @@ WHERE
   p.id IS NULL;
 
 -- If you added the generated unique column above, you can instead do:
--- INSERT INTO people (first_name, last_name, created_at)
+-- INSERT INTO person (first_name, last_name, created_at)
 -- SELECT DISTINCT t.first_name, t.last_name, now()
 -- FROM tmp_founders_normalized t
 -- ON CONFLICT (full_name_canon) DO NOTHING;
--- 3) Link people to companies as Founders
+-- 3) Link person to companies as Founders
 INSERT INTO
   person__company (
     person_id,
@@ -78,7 +78,7 @@ SELECT
   now()
 FROM
   tmp_founders_normalized t
-  JOIN people p ON lower(
+  JOIN person p ON lower(
     regexp_replace(
       btrim(concat_ws(' ', p.first_name, p.last_name)),
       '\s+',

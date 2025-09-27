@@ -1,5 +1,5 @@
--- Minimal people table (no company relation)
-CREATE TABLE IF NOT EXISTS public.people (
+-- Minimal person table (no company relation)
+CREATE TABLE IF NOT EXISTS public.person (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
   first_name text NOT NULL,
   last_name text NOT NULL,
@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS public.people (
 );
 
 -- Index on first_name + last_name for fast name lookups
-CREATE INDEX idx_people_name ON public.people (first_name, last_name);
+CREATE INDEX idx_person_name ON public.person (first_name, last_name);

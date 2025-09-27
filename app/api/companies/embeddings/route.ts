@@ -7,10 +7,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Get companies without embeddings
+    // Get companies without embeddings (include person join to derive founders)
     const { data: companies, error: fetchError } = await supabase
       .from("companies")
-      .select("id,name,description,tags,founders,backing_vcs,stage")
+      .select(`id,name,description,tags,backing_vcs,stage, person__company ( person ( first_name, last_name ), is_founder )`)
       .is("embedding", null);
 
     if (fetchError) {
@@ -20,12 +20,23 @@ export async function POST(request: NextRequest) {
     if (!companies || companies.length === 0) {
       return NextResponse.json({ message: "All companies already have embeddings" });
     }
-    const safeCompanies = companies.map((company) => ({
-      ...company,
-      tags: company.tags || [],
-      founders: company.founders || [],
-      backing_vcs: company.backing_vcs || [],
-    }));
+
+    const safeCompanies = companies.map((company: any) => {
+      const foundersFromJoin = (company.person__company || [])
+        .filter((pc: any) => pc.is_founder)
+        .map((pc: any) => {
+          const p = pc.person;
+          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+        })
+        .filter(Boolean) as string[];
+
+      return {
+        ...company,
+        tags: company.tags || [],
+        founders: foundersFromJoin.length > 0 ? foundersFromJoin : [],
+        backing_vcs: company.backing_vcs || [],
+      };
+    });
 
     // Generate embeddings for each company
     const updates = [];

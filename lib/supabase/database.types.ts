@@ -56,7 +56,7 @@ export type Database = {
         };
         Relationships: [];
       };
-      people: {
+      person: {
         Row: {
           created_at: string | null;
           email: string | null;
@@ -129,7 +129,7 @@ export type Database = {
             foreignKeyName: "person_company_person_id_fkey";
             columns: ["person_id"];
             isOneToOne: false;
-            referencedRelation: "people";
+            referencedRelation: "person";
             referencedColumns: ["id"];
           },
         ];
@@ -220,7 +220,7 @@ export type Database = {
       };
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown };
-        Returns: string;
+        Returns: unknown;
       };
       sparsevec_out: {
         Args: { "": unknown };

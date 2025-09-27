@@ -14,16 +14,46 @@ export function useCompanies(filters?: SearchFilters) {
 
       // If no search query and no tag filters, return all companies
       if (!searchQuery?.trim() && tagFilters.length === 0) {
-        const { data, error }: { data: Company[] | null; error: PostgrestError | null } = await supabase
+        const { data, error }: { data: any[] | null; error: PostgrestError | null } = await supabase
           .from("companies")
-          .select("*")
+          .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
           .order("name");
 
         if (error) {
           throw new Error(`Failed to fetch companies: ${error.message}`);
         }
 
-        return data || [];
+        // Map founders from person__company join into founders string[]
+        if (data) {
+          const mapped = data.map((c: any) => {
+            const foundersFromJoin = (c.person__company || [])
+              .filter((pc: any) => pc.is_founder)
+              .map((pc: any) => {
+                const p = pc.person;
+                return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+              })
+              .filter(Boolean) as string[];
+
+            return {
+              id: c.id,
+              name: c.name,
+              description: c.description,
+              tags: c.tags || [],
+              sector: c.sector,
+              backing_vcs: c.backing_vcs || [],
+              stage: c.stage,
+              founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+              website: c.website,
+              logo_url: c.logo_url,
+              created_at: c.created_at,
+              updated_at: c.updated_at,
+            } as Company;
+          });
+
+          return mapped || [];
+        }
+
+        return [];
       }
 
       // If only tag filters (no search query), use simple tag filtering
@@ -70,21 +100,51 @@ export function useCompanies(filters?: SearchFilters) {
 async function tagFilterSearch(supabase: SupabaseClient, tagFilters: string[]): Promise<Company[]> {
   console.log("[v0] Using tag filter search for:", tagFilters);
 
-  let query = supabase.from("companies").select("*").order("name");
+  let query = supabase.from("companies").select(`*, person__company ( person ( first_name, last_name ), is_founder )`).order("name");
 
   // Apply tag filters - company must have ALL specified tags
   for (const tag of tagFilters) {
     query = query.contains("tags", [tag]);
   }
 
-  const { data, error }: { data: Company[] | null; error: PostgrestError | null } = await query;
+  const { data, error }: { data: any[] | null; error: PostgrestError | null } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  console.log("[v0] Tag filter search returned", data?.length || 0, "results");
-  return data || [];
+  // Map founders from the join if present
+  if (data) {
+    const mapped = data.map((c: any) => {
+      const foundersFromJoin = (c.person__company || [])
+        .filter((pc: any) => pc.is_founder)
+        .map((pc: any) => {
+          const p = pc.person;
+          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+        })
+        .filter(Boolean) as string[];
+
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        tags: c.tags || [],
+        sector: c.sector,
+        backing_vcs: c.backing_vcs || [],
+        stage: c.stage,
+        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+        website: c.website,
+        logo_url: c.logo_url,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+      } as Company;
+    });
+
+    console.log("[v0] Tag filter search returned", mapped?.length || 0, "results");
+    return mapped || [];
+  }
+
+  return [];
 }
 
 async function fallbackKeywordSearch(
@@ -94,7 +154,7 @@ async function fallbackKeywordSearch(
 ): Promise<Company[]> {
   console.log("[v0] Using fallback keyword search for:", searchQuery, "with tag filters:", tagFilters);
 
-  let query = supabase.from("companies").select("*").order("name");
+  let query = supabase.from("companies").select(`*, person__company ( person ( first_name, last_name ), is_founder )`).order("name");
 
   query = query.or(
     `name.ilike.%${searchQuery}%,` +
@@ -110,15 +170,40 @@ async function fallbackKeywordSearch(
     query = query.contains("tags", [tag]);
   }
 
-  const { data, error }: { data: Company[] | null; error: PostgrestError | null } = await query;
+  const { data, error }: { data: any[] | null; error: PostgrestError | null } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  // Sort results to prioritize name matches
+  // Map founders from join and then sort to prioritize name matches
   if (data) {
-    data.sort((a: Company, b: Company) => {
+    const mapped = data.map((c: any) => {
+      const foundersFromJoin = (c.person__company || [])
+        .filter((pc: any) => pc.is_founder)
+        .map((pc: any) => {
+          const p = pc.person;
+          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
+        })
+        .filter(Boolean) as string[];
+
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        tags: c.tags || [],
+        sector: c.sector,
+        backing_vcs: c.backing_vcs || [],
+        stage: c.stage,
+        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+        website: c.website,
+        logo_url: c.logo_url,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+      } as Company;
+    });
+
+    mapped.sort((a: Company, b: Company) => {
       const aNameMatch = (a.name || "").toLowerCase().includes(searchQuery.toLowerCase());
       const bNameMatch = (b.name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -126,8 +211,10 @@ async function fallbackKeywordSearch(
       if (!aNameMatch && bNameMatch) return 1;
       return 0;
     });
+
+    console.log("[v0] Fallback keyword search returned", mapped?.length || 0, "results");
+    return mapped || [];
   }
 
-  console.log("[v0] Fallback keyword search returned", data?.length || 0, "results");
-  return data || [];
+  return [];
 }
