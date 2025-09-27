@@ -1,7 +1,6 @@
 import { generateCompanyText, generateEmbedding } from "@/lib/embeddings";
 import { createClient } from "@/lib/supabase/server";
 import type { Company } from "@/lib/types";
-import type { PostgrestError } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -19,92 +18,56 @@ export async function GET(request: NextRequest) {
 
     // If there's no search query and no tags, return all companies
     if (!query && tagFilters.length === 0) {
-      const { data, error } = (await supabase
-        .from("companies")
-        .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
-        .order("name")) as { data: any[] | null; error: PostgrestError | null };
-
-      if (error) {
-        console.error("Database error:", error);
-        return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
-      }
-
-      const companies = (data || []).map((c: any) => {
-        const foundersFromJoin = (c.person__company || [])
-          .filter((pc: any) => pc.is_founder)
-          .map((pc: any) => {
-            const p = pc.person;
-            return p ? `${p.first_name} ${p.last_name}`.trim() : null;
-          })
-          .filter(Boolean) as string[];
-
-        return {
-          id: c.id,
-          name: c.name,
-          description: c.description,
-          tags: c.tags || [],
-          sector: c.sector,
-          backing_vcs: c.backing_vcs || [],
-          stage: c.stage,
-          founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
-          website: c.website,
-          logo_url: c.logo_url,
-          created_at: c.created_at,
-          updated_at: c.updated_at,
-        } as Company;
-      });
-
-      return NextResponse.json(companies || []);
+      return NextResponse.json([]);
     }
 
     // If there's a search query, attempt hybrid search (server-side embedding + Supabase RPC)
-    if (query) {
-      try {
-        console.log("[v0] Server: generating embedding for query:", query);
-        const embedding = await generateEmbedding(query);
+    try {
+      console.log("[v0] Server: generating embedding for query:", query);
+      const embedding = await generateEmbedding(query);
 
-        // Verify embedding isn't a zero vector
-        const isValidEmbedding = Array.isArray(embedding) && embedding.some((v) => v !== 0);
+      // Verify embedding isn't a zero vector
+      const isValidEmbedding = Array.isArray(embedding) && embedding.some((v) => v !== 0);
 
-        if (isValidEmbedding) {
-          console.log("[v0] Server: calling hybrid_search_companies RPC");
-          const rpcArgs = {
-            query_embedding: JSON.stringify(embedding),
-            query_text: query,
-            match_threshold: 0.2,
-            match_count: 50,
-          } as const;
+      if (isValidEmbedding) {
+        console.log("[v0] Server: calling hybrid_search_companies RPC");
+        const rpcArgs = {
+          query_embedding: JSON.stringify(embedding),
+          query_text: query,
+          match_threshold: 0.2,
+          match_count: 50,
+        } as const;
 
-          // Expecting the RPC to return an array of CompanySearchResult-like objects
-          const rpcResponse = await supabase.rpc("hybrid_search_companies", rpcArgs);
+        // Expecting the RPC to return an array of CompanySearchResult-like objects
+        const rpcResponse = await supabase.rpc("hybrid_search_companies", rpcArgs);
 
-          const { data, error } = rpcResponse;
+        const { data, error } = rpcResponse;
 
-          if (error) {
-            console.error("[v0] Hybrid search RPC error:", error);
-            // fallback to keyword search below
-          } else {
-            let results = (data || []).map(({ similarity, rank_score, ...company }) => company);
-            if (tagFilters.length > 0) {
-              results = results.filter((company) => {
-                return tagFilters.every((tag) => company.tags.includes(tag));
-              });
-            }
-            return NextResponse.json(results || []);
-          }
+        if (error) {
+          console.error("[v0] Hybrid search RPC error:", error);
+          // fallback to keyword search below
         } else {
-          console.log("[v0] Server: embedding invalid, falling back to keyword search");
+          let results = (data || []).map(({ similarity, rank_score, ...company }) => company);
+          if (tagFilters.length > 0) {
+            results = results.filter((company) => {
+              return tagFilters.every((tag) => company.tags.includes(tag));
+            });
+          }
+          return NextResponse.json(results || []);
         }
-      } catch (err) {
-        console.error("[v0] Server: embedding/hybrid search error:", err);
-        // Fall through to keyword search fallback
+      } else {
+        console.log("[v0] Server: embedding invalid, falling back to keyword search");
       }
+    } catch (err) {
+      console.error("[v0] Server: embedding/hybrid search error:", err);
+      // Fall through to keyword search fallback
     }
 
     // Keyword fallback search (applies for tag-only searches or when hybrid fails)
     let supabaseQuery = supabase
       .from("companies")
       .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
+      .eq("person__company.is_founder", true)
       .order("name");
 
     if (query) {
@@ -123,22 +86,14 @@ export async function GET(request: NextRequest) {
       supabaseQuery = supabaseQuery.contains("tags", [tag]);
     }
 
-    const { data, error } = (await supabaseQuery) as { data: any[] | null; error: PostgrestError | null };
+    const { data, error } = await supabaseQuery;
 
     if (error) {
       console.error("Database error (keyword fallback):", error);
       return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
     }
 
-    const companies = (data || []).map((c: any) => {
-      const foundersFromJoin = (c.person__company || [])
-        .filter((pc: any) => pc.is_founder)
-        .map((pc: any) => {
-          const p = pc.person;
-          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
-        })
-        .filter(Boolean) as string[];
-
+    const companies = data.map((c) => {
       return {
         id: c.id,
         name: c.name,
@@ -147,12 +102,16 @@ export async function GET(request: NextRequest) {
         sector: c.sector,
         backing_vcs: c.backing_vcs || [],
         stage: c.stage,
-        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
+        founders: c.person__company
+          .filter((pc) => pc.is_founder)
+          .map(({ person }) => {
+            return `${person.first_name} ${person.last_name}`.trim();
+          }),
         website: c.website,
         logo_url: c.logo_url,
         created_at: c.created_at,
         updated_at: c.updated_at,
-      } as Company;
+      };
     });
 
     // If there's a search query, sort results to prioritize name matches
