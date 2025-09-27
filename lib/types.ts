@@ -1,24 +1,22 @@
 export interface Company {
-  id: string
-  name: string
-  description: string | null
-  tags: string[]
-  sector: string | null
-  backing_vcs: string[]
-  stage: string | null
-  founders: string[]
-  website: string | null
-  logo_url: string | null
-  created_at: string
-  updated_at: string
+  id: string;
+  name: string;
+  description: string | null;
+  tags: string[] | null;
+  sector: string | null;
+  backing_vcs: string[] | null;
+  stage: string | null;
+  founders: string[] | null;
+  website: string | null;
+  logo_url: string | null;
 }
 
 export interface CompanySearchResult extends Company {
-  similarity: number
-  rank_score: number
+  similarity: number;
+  rank_score: number;
 }
 
 export interface SearchFilters {
-  query: string
-  tags: string[]
+  query: string;
+  tags: string[];
 }
