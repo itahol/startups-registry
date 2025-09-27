@@ -1,7 +1,34 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Company, SearchFilters } from "@/lib/types";
-import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
+
+// Minimal DB row types for safer mapping
+type PersonRow = {
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+type PersonCompanyRow = {
+  person?: PersonRow | null;
+  is_founder?: boolean | null;
+};
+
+type CompanyRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  tags?: string[] | null;
+  sector?: string | null;
+  backing_vcs?: string[] | null;
+  stage?: string | null;
+  founders?: string[] | null;
+  website?: string | null;
+  logo_url?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  person__company?: PersonCompanyRow[] | null;
+};
 
 export function useCompanies(filters?: SearchFilters) {
   const searchQuery = filters?.query;
@@ -12,47 +39,8 @@ export function useCompanies(filters?: SearchFilters) {
     queryFn: async (): Promise<Company[]> => {
       const supabase = createClient();
 
-      // If no search query and no tag filters, return all companies
+      // If no search query and no tag filters, return empty (server returns nothing)
       if (!searchQuery?.trim() && tagFilters.length === 0) {
-        const { data, error }: { data: any[] | null; error: PostgrestError | null } = await supabase
-          .from("companies")
-          .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
-          .order("name");
-
-        if (error) {
-          throw new Error(`Failed to fetch companies: ${error.message}`);
-        }
-
-        // Map founders from person__company join into founders string[]
-        if (data) {
-          const mapped = data.map((c: any) => {
-            const foundersFromJoin = (c.person__company || [])
-              .filter((pc: any) => pc.is_founder)
-              .map((pc: any) => {
-                const p = pc.person;
-                return p ? `${p.first_name} ${p.last_name}`.trim() : null;
-              })
-              .filter(Boolean) as string[];
-
-            return {
-              id: c.id,
-              name: c.name,
-              description: c.description,
-              tags: c.tags || [],
-              sector: c.sector,
-              backing_vcs: c.backing_vcs || [],
-              stage: c.stage,
-              founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
-              website: c.website,
-              logo_url: c.logo_url,
-              created_at: c.created_at,
-              updated_at: c.updated_at,
-            } as Company;
-          });
-
-          return mapped || [];
-        }
-
         return [];
       }
 
@@ -72,22 +60,23 @@ export function useCompanies(filters?: SearchFilters) {
 
         if (!res.ok) {
           console.error("[v0] search API returned error", await res.text());
-          return fallbackKeywordSearch(supabase, searchQuery as string, tagFilters);
+          return fallbackKeywordSearch(supabase, searchQuery ?? "", tagFilters);
         }
 
-        const companies = await res.json();
+        const companiesJson = await res.json();
 
         // Ensure final filtering by tags client-side (extra safety)
-        let results = (companies || []) as Company[];
+        const results: Company[] = Array.isArray(companiesJson) ? companiesJson.filter((c) => !!c).map((c) => c) : [];
+
         if (tagFilters.length > 0) {
-          results = results.filter((company) => tagFilters.every((tag) => (company.tags || []).includes(tag)));
+          return results.filter((company) => tagFilters.every((tag) => (company.tags || []).includes(tag)));
         }
 
         return results;
       } catch (error) {
         console.error("[v0] Error calling search API:", error);
         // Fallback to keyword search
-        return fallbackKeywordSearch(supabase, searchQuery as string, tagFilters);
+        return fallbackKeywordSearch(supabase, searchQuery ?? "", tagFilters);
       }
     },
     // Only enable query when there's a search query or tag filters
@@ -100,51 +89,50 @@ export function useCompanies(filters?: SearchFilters) {
 async function tagFilterSearch(supabase: SupabaseClient, tagFilters: string[]): Promise<Company[]> {
   console.log("[v0] Using tag filter search for:", tagFilters);
 
-  let query = supabase.from("companies").select(`*, person__company ( person ( first_name, last_name ), is_founder )`).order("name");
+  const query = supabase
+    .from("companies")
+    .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
+    .order("name");
 
   // Apply tag filters - company must have ALL specified tags
+  let filteredQuery = query;
   for (const tag of tagFilters) {
-    query = query.contains("tags", [tag]);
+    filteredQuery = filteredQuery.contains("tags", [tag]);
   }
 
-  const { data, error }: { data: any[] | null; error: PostgrestError | null } = await query;
+  const { data, error } = await filteredQuery;
 
   if (error) {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  // Map founders from the join if present
-  if (data) {
-    const mapped = data.map((c: any) => {
-      const foundersFromJoin = (c.person__company || [])
-        .filter((pc: any) => pc.is_founder)
-        .map((pc: any) => {
-          const p = pc.person;
-          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
-        })
-        .filter(Boolean) as string[];
+  if (!data || data.length === 0) return [];
 
-      return {
-        id: c.id,
-        name: c.name,
-        description: c.description,
-        tags: c.tags || [],
-        sector: c.sector,
-        backing_vcs: c.backing_vcs || [],
-        stage: c.stage,
-        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
-        website: c.website,
-        logo_url: c.logo_url,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-      } as Company;
-    });
+  const mapped: Company[] = data.map((c: CompanyRow) => {
+    const joinRows = Array.isArray(c.person__company) ? c.person__company : [];
+    const foundersFromJoin: string[] = joinRows
+      .filter((pc): pc is PersonCompanyRow & { person: PersonRow } => !!pc && !!pc.is_founder && !!pc.person)
+      .map((pc) => `${pc.person!.first_name ?? ""} ${pc.person!.last_name ?? ""}`.trim())
+      .filter((s) => s.length > 0);
 
-    console.log("[v0] Tag filter search returned", mapped?.length || 0, "results");
-    return mapped || [];
-  }
+    return {
+      id: c.id,
+      name: c.name,
+      description: c.description ?? null,
+      tags: c.tags ?? null,
+      sector: c.sector ?? null,
+      backing_vcs: c.backing_vcs ?? null,
+      stage: c.stage ?? null,
+      founders: foundersFromJoin.length > 0 ? foundersFromJoin : (c.founders ?? null),
+      website: c.website ?? null,
+      logo_url: c.logo_url ?? null,
+      created_at: c.created_at ?? null,
+      updated_at: c.updated_at ?? null,
+    };
+  });
 
-  return [];
+  console.log("[v0] Tag filter search returned", mapped.length, "results");
+  return mapped;
 }
 
 async function fallbackKeywordSearch(
@@ -154,7 +142,10 @@ async function fallbackKeywordSearch(
 ): Promise<Company[]> {
   console.log("[v0] Using fallback keyword search for:", searchQuery, "with tag filters:", tagFilters);
 
-  let query = supabase.from("companies").select(`*, person__company ( person ( first_name, last_name ), is_founder )`).order("name");
+  let query = supabase
+    .from("companies")
+    .select(`*, person__company ( person ( first_name, last_name ), is_founder )`)
+    .order("name");
 
   query = query.or(
     `name.ilike.%${searchQuery}%,` +
@@ -170,51 +161,46 @@ async function fallbackKeywordSearch(
     query = query.contains("tags", [tag]);
   }
 
-  const { data, error }: { data: any[] | null; error: PostgrestError | null } = await query;
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  // Map founders from join and then sort to prioritize name matches
-  if (data) {
-    const mapped = data.map((c: any) => {
-      const foundersFromJoin = (c.person__company || [])
-        .filter((pc: any) => pc.is_founder)
-        .map((pc: any) => {
-          const p = pc.person;
-          return p ? `${p.first_name} ${p.last_name}`.trim() : null;
-        })
-        .filter(Boolean) as string[];
+  if (!data || data.length === 0) return [];
 
-      return {
-        id: c.id,
-        name: c.name,
-        description: c.description,
-        tags: c.tags || [],
-        sector: c.sector,
-        backing_vcs: c.backing_vcs || [],
-        stage: c.stage,
-        founders: foundersFromJoin.length > 0 ? foundersFromJoin : c.founders || [],
-        website: c.website,
-        logo_url: c.logo_url,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-      } as Company;
-    });
+  const mapped: Company[] = data.map((c: CompanyRow) => {
+    const joinRows = Array.isArray(c.person__company) ? c.person__company : [];
+    const foundersFromJoin: string[] = joinRows
+      .filter((pc): pc is PersonCompanyRow & { person: PersonRow } => !!pc && !!pc.is_founder && !!pc.person)
+      .map((pc) => `${pc.person!.first_name ?? ""} ${pc.person!.last_name ?? ""}`.trim())
+      .filter((s) => s.length > 0);
 
-    mapped.sort((a: Company, b: Company) => {
-      const aNameMatch = (a.name || "").toLowerCase().includes(searchQuery.toLowerCase());
-      const bNameMatch = (b.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return {
+      id: c.id,
+      name: c.name,
+      description: c.description ?? null,
+      tags: c.tags ?? null,
+      sector: c.sector ?? null,
+      backing_vcs: c.backing_vcs ?? null,
+      stage: c.stage ?? null,
+      founders: foundersFromJoin.length > 0 ? foundersFromJoin : (c.founders ?? null),
+      website: c.website ?? null,
+      logo_url: c.logo_url ?? null,
+      created_at: c.created_at ?? null,
+      updated_at: c.updated_at ?? null,
+    };
+  });
 
-      if (aNameMatch && !bNameMatch) return -1;
-      if (!aNameMatch && bNameMatch) return 1;
-      return 0;
-    });
+  mapped.sort((a, b) => {
+    const aNameMatch = (a.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const bNameMatch = (b.name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    console.log("[v0] Fallback keyword search returned", mapped?.length || 0, "results");
-    return mapped || [];
-  }
+    if (aNameMatch && !bNameMatch) return -1;
+    if (!aNameMatch && bNameMatch) return 1;
+    return 0;
+  });
 
-  return [];
+  console.log("[v0] Fallback keyword search returned", mapped.length, "results");
+  return mapped;
 }
