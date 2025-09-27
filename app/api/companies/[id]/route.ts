@@ -2,6 +2,26 @@ import { generateCompanyText, generateEmbedding } from '@/lib/embeddings'
 import { createClient } from '@/lib/supabase/server'
 import { type NextRequest, NextResponse } from 'next/server'
 
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const id = params.id
+    if (!id) return NextResponse.json({ error: 'Missing company id' }, { status: 400 })
+
+    const supabase = await createClient()
+    const { data, error } = await supabase.from('companies').select('*').eq('id', id).single()
+
+    if (error) {
+      console.error('Failed to fetch company:', error)
+      return NextResponse.json({ error: error.message || 'Company not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('GET error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const id = params.id

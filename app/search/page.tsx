@@ -252,7 +252,13 @@ export default function SearchPage() {
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {safeCompanies.map((company) => (
-              <Card key={company.id} className="hover:shadow-lg transition-shadow duration-200">
+              <Card key={company.id} className="hover:shadow-lg transition-shadow duration-200 cursor-pointer" onClick={() => {
+                          const params = new URLSearchParams();
+                          if (debouncedSearchQuery.trim()) params.set('q', debouncedSearchQuery.trim());
+                          if (selectedTags.length > 0) params.set('tags', selectedTags.join(','));
+                          const qs = params.toString();
+                          router.push(`/companies/${company.id}${qs ? `?${qs}` : ''}`);
+                        }}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-2">
@@ -296,7 +302,7 @@ export default function SearchPage() {
                                   ? "bg-primary text-primary-foreground"
                                   : "hover:bg-primary hover:text-primary-foreground hover:border-primary"
                               }`}
-                              onClick={() => handleTagClick(tag)}
+                              onClick={(e) => { e.stopPropagation(); handleTagClick(tag) }}
                             >
                               {tag}
                               {isSelected && <span className="ml-1">✓</span>}
